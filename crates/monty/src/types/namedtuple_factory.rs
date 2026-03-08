@@ -313,19 +313,26 @@ fn parse_namedtuple_args(vm: &mut VM<'_, '_, impl ResourceTracker>, args: ArgVal
     }
 
     let mut values = values_guard.into_inner();
-    let typename_value = values[0].take().expect("typename should be bound");
-    let field_names_value = values[1].take().expect("field_names should be bound");
-    let rename_value = values[2].take();
-    let module_value = values[3].take();
-    let defaults_value = values[4].take();
+    let extracted_values = vec![
+        values[0].take(),
+        values[1].take(),
+        values[2].take(),
+        values[3].take(),
+        values[4].take(),
+    ];
     values.drop_with_heap(vm);
 
+    let mut extracted_guard = HeapGuard::new(extracted_values, vm);
+    let (extracted_values, vm) = extracted_guard.as_parts_mut();
+
+    let typename_value = extracted_values[0].take().expect("typename should be bound");
     let typename = parse_typename(typename_value, vm.heap, vm.interns)?;
-    let rename = parse_rename(rename_value, vm.heap, vm.interns);
+    let rename = parse_rename(extracted_values[2].take(), vm.heap, vm.interns);
+    let field_names_value = extracted_values[1].take().expect("field_names should be bound");
     let raw_field_names = parse_field_names(vm, field_names_value)?;
     let field_names = validate_field_names(raw_field_names, rename)?;
-    let module_name = parse_module_name(module_value, vm.heap, vm.interns)?;
-    let defaults = parse_defaults(vm, defaults_value)?;
+    let module_name = parse_module_name(extracted_values[3].take(), vm.heap, vm.interns)?;
+    let defaults = parse_defaults(vm, extracted_values[4].take())?;
 
     if defaults.len() > field_names.len() {
         defaults.drop_with_heap(vm);
